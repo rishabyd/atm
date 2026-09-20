@@ -1,54 +1,25 @@
+#include "atm.h"
 #include <cstdint>
+#include <format>
 #include <iostream>
 #include <limits>
 #include <string_view>
 #include <vector>
 
-enum class Type { deposit, withdraw };
-
-struct Transaction {
-  std::int64_t amount;
-  Type type;
-};
-
-class Account {
-private:
-  std::int64_t balance{};
-  std::vector<Transaction> transactions{};
-
-public:
-  explicit Account(std::int64_t amount) : balance{amount} {}
-
-  std::int64_t getBalance() const { return balance; }
-
-  bool depositAmount(std::int64_t amount) {
-    if (amount <= 0) {
-      return false;
-    }
-    balance += amount;
-    transactions.push_back(
-        Transaction{.amount = amount, .type = Type::deposit});
-    return true;
-  }
-
-  bool withdrawAmount(std::int64_t amount) {
-    if (amount > balance || amount <= 0) {
-      return false;
-    }
-    balance -= amount;
-    transactions.push_back(
-        Transaction{.amount = amount, .type = Type::withdraw});
-    return true;
-  }
-
-  const std::vector<Transaction> &getTransactions() const {
-    return transactions;
-  }
-};
-
 void clearInputBuffer() {
   std::cin.clear();
   std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+}
+
+bool promptId(std::int64_t &id) {
+  if (!(std::cin >> id)) {
+    std::cout << "inavalid number\n";
+    clearInputBuffer();
+    return false;
+  }
+
+  clearInputBuffer();
+  return true;
 }
 
 bool promptAmount(std::string_view prompt, std::int64_t &outAmount) {
@@ -63,35 +34,61 @@ bool promptAmount(std::string_view prompt, std::int64_t &outAmount) {
   return true;
 }
 
-void handleDeposit(Account &acc) {
+void handleDeposit(Account &acc, const std::vector<Account> &accounts) {
   std::int64_t amount{};
   if (!promptAmount("Enter amount to deposit: ", amount)) {
     return;
   }
-
-  if (acc.depositAmount(amount)) {
-    std::cout << "Deposit successful.\n";
-  } else {
+  if (!acc.depositAmount(amount)) {
     std::cout << "Deposit failed. Amount must be positive.\n";
+    return;
   }
+
+  if (!store::saveAccounts(accounts)) {
+    std::cout << "Deposit occurred, but the account file could not be saved.\n";
+    return;
+  }
+
+  if (!store::appendTransaction(acc.getId(), Type::deposit, amount,
+                                acc.getBalance())) {
+    std::cout
+        << "Deposit succeeded, but transaction history could not be saved.\n";
+    return;
+  }
+  std::cout << "Deposit successful.\n";
 }
 
-void handleWithdraw(Account &acc) {
+void handleWithdraw(Account &acc, const std::vector<Account> &accounts) {
   std::int64_t amount{};
   if (!promptAmount("Enter amount to withdraw: ", amount)) {
     return;
   }
 
-  if (acc.withdrawAmount(amount)) {
-    std::cout << "Withdrawal successful.\n";
-  } else {
+  if (!acc.withdrawAmount(amount)) {
     std::cout << "Withdrawal failed. Insufficient funds or invalid amount.\n";
+    return;
   }
+
+  if (!store::saveAccounts(accounts)) {
+    std::cout
+        << "Withdrawal occurred, but the account file could not be saved.\n";
+    return;
+  }
+
+  if (!store::appendTransaction(acc.getId(), Type::withdraw, amount,
+                                acc.getBalance())) {
+    std::cout << "Withdrawal succeeded, but transaction history could not be "
+                 "saved.\n";
+    return;
+  }
+
+  std::cout << "Withdrawal success.\n";
 }
 
-void handleDisplayHistory(const Account &acc) {
-  std::cout << "Current Balance: Rs." << acc.getBalance() << '\n';
-  const auto &transactions = acc.getTransactions();
+void handleDisplayHistory(const Account &acc1) {
+  std::cout << std::format("Current Balance: Rs.{}\n\n", acc1.getBalance());
+
+  const auto transactions{store::loadHistory(acc1.getId())};
 
   if (transactions.empty()) {
     std::cout << "No transactions have been made yet!\n";
@@ -100,8 +97,10 @@ void handleDisplayHistory(const Account &acc) {
 
   std::cout << "===== TRANSACTION HISTORY =====\n";
   for (const auto &tran : transactions) {
-    std::cout << (tran.type == Type::deposit ? "Deposited" : "Withdrew")
-              << ": Rs. " << tran.amount << '\n';
+    std::cout << std::format(
+        "{}: Rs.{}  | Balance after: {}\n",
+        (tran.type == Type::deposit ? "Deposited" : "Withdrew"), tran.amount,
+        tran.balanceAfter);
   }
 }
 
@@ -114,8 +113,36 @@ void printMenu() {
             << "5. Exit\n";
 }
 
+void printAccounts(const std::vector<Account> &accs) {
+  std::cout << "\n===== ACCOUNTS =====\n" << '\n';
+  for (const Account &acc : accs) {
+    std::cout << std::format("{} | {} | {}\n", acc.getId(), acc.getName(),
+                             acc.getBalance());
+  }
+}
+
+Account &selectAccount(std::vector<Account> &accounts) {
+  while (true) {
+    std::int64_t accountId{};
+
+    if (!promptId(accountId)) {
+      continue;
+    }
+
+    for (Account &account : accounts) {
+      if (account.getId() == accountId) {
+        return account;
+      }
+    }
+
+    std::cout << "Invalid account id. Try again.\n";
+  }
+}
+
 int main() {
-  Account acc1{10000};
+  std::vector<Account> accounts{store::loadAccounts()};
+  printAccounts(accounts);
+  Account &acc1{selectAccount(accounts)};
   printMenu();
 
   while (true) {
@@ -134,10 +161,10 @@ int main() {
       std::cout << "Current Balance: Rs." << acc1.getBalance() << '\n';
       break;
     case 2:
-      handleDeposit(acc1);
+      handleDeposit(acc1, accounts);
       break;
     case 3:
-      handleWithdraw(acc1);
+      handleWithdraw(acc1, accounts);
       break;
     case 4:
       handleDisplayHistory(acc1);

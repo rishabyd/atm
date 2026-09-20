@@ -1,1 +1,14 @@
-*app
+/app
+*.o
+*.obj
+*.d
+*.out
+*.exe
+
+# Generated ATM data
+/accounts.txt
+/transactions.txt
+
+# Compiler and language-server files
+/compile_commands.json
+/.cache/
