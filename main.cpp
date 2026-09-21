@@ -142,6 +142,7 @@ Account &selectAccount(std::vector<Account> &accounts) {
 int main() {
   std::vector<Account> accounts{store::loadAccounts()};
   printAccounts(accounts);
+  std::cout << "----------------------------------------\nEnter account Id: ";
   Account &acc1{selectAccount(accounts)};
   printMenu();
 

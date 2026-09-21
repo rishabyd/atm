@@ -11,4 +11,4 @@ app: *.cpp
 	g++ $(CXXFLAGS) *.cpp -o app
 
 clean:
-	rm -f app
+	rm -f app transactions.txt accounts.txt
