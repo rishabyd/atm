@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+constexpr auto defaultBalance{5000};
 
 enum class Type { deposit, withdraw };
 
@@ -10,6 +11,13 @@ struct Transaction {
   Type type{};
   std::int64_t amount{};
   std::int64_t balanceAfter{};
+};
+
+struct AccountWithPin {
+  std::int64_t id{};
+  std::string name{};
+  std::int64_t balance{};
+  std::int64_t pin{};
 };
 
 class Account {
@@ -30,10 +38,12 @@ public:
 
 namespace store {
 
-std::vector<Account> loadAccounts();
-bool saveAccounts(const std::vector<Account> &accounts);
+std::vector<AccountWithPin> loadAccounts();
+bool saveAccounts(const std::vector<AccountWithPin> &accounts);
 bool appendTransaction(std::int64_t accountId, Type type, std::int64_t amount,
                        std::int64_t balanceAfter);
 std::vector<Transaction> loadHistory(std::int64_t accountId);
+bool appendAccounts(std::int64_t id, std::string name, std::int64_t balance,
+                    std::int64_t pin);
 
 } // namespace store
